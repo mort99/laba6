@@ -1,0 +1,257 @@
+---
+title: "Упражнение 6"
+author: "Маркин Артём"
+date: "15 04 2020"
+output:
+  html_document:
+    df_print: paged
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+Задачи:
+
+1. Примените указанный в варианте метод к набору данных по своему варианту (см. таблицу ниже). Не забудьте предварительно сделать из категориальных переменных факторы. Выберите оптимальную модель с помощью кросс-валидации. Выведите её коэффициенты с помощью функции coef(). Рассчитайте MSE модели на тестовой выборке.   
+
+2. Примените указанный в варианте метод к набору данных по своему варианту (см. таблицу ниже). Для модели:   
+
+ - Подогнать модель на всей выборке и вычислить ошибку (MSE) с кросс-валидацией. По наименьшей MSE подобрать оптимальное значение настроечного параметра метода (гиперпараметр λ или число главных компонент M).
+
+ - Подогнать модель с оптимальным значением параметра на обучающей выборке, посчитать MSE на тестовой.   
+ 
+ - Подогнать модель с оптимальным значением параметра на всех данных, вывести характеристики модели функцией summary().    
+
+3. Сравните оптимальные модели, полученные в заданиях 1 и 2 по MSE на тестовой выборке. Какой метод дал лучший результат? Доля тестовой выборки: 50%.   
+
+### Вариант 12
+
+Данные `College {ISLR}`:
+
+- `Accept` - Количество принятых заявок;
+- `Private` - Фактор с уровнями Нет и Да, указывающий частный или государственный университет;
+- `Apps` - Количество полученных заявок;
+- `Enroll` - Количество новых студентов, зачисленных;
+- `Top10perc` - Процент новых студентов из лучших 10% H.S. класс;
+- `Outstate` - Обучение за пределами штата;
+- `Room.Board` - Стоимость проживания и питания;
+- `Personal` - Расчетные личные расходы;
+- `Terminal` - Процент факультета с конечной степенью;
+- `perc.alumni` -Процент выпускников, которые жертвуют;
+- `Grad.Rate` - Выпускной.
+
+Методы:
+
+- Для задания 1: отбор путём пошагового включения;
+- Для задания 2: регрессия на главные компоненты.
+
+```{r Данные и пакеты, warning = F, message = F}
+# Загрузка пакетов
+library('knitr')             # Пакет для генерации отчёта
+library('ISLR')              # Набор данных College
+library('leaps')             # Функция regsubset() - отбор оптимального подмножества переменных
+library('pls')               # Частный метод наименьших квадратов - pls()
+
+my.seed <- 1
+
+# Загрузка данных College
+data('College')
+# Переводим дискретные количественные переменные в факторы
+College$Peivate <- as.factor(College$Private)
+College <- College[, c(1:5, 9:10, 12, 14, 16, 18)]
+```
+
+Статистика по большому количеству американских колледжей из выпуска US News and World Report за 1995 год.
+
+```{r}
+# Название столбцов переменных
+names(College)
+
+# Размерность данных
+dim(College)
+```
+
+Считаем число пропусков в данных и убираем их.   
+
+```{r}
+# Считаем пропуски
+sum(is.na(College))
+
+# Убираем пропуски
+College <- na.omit(College)
+
+# Проверяем результат
+dim(College)
+sum(is.na(College))
+```
+
+Отбор путём пошагового включения переменных
+
+```{r}
+# Подгоняем модели с сочетаниями предикторов до 10 (максимум в данных)
+regfit.fwd <- regsubsets(Accept ~ ., data = College,
+                         nvmax = 10, method = 'forward')
+reg.summary <- summary(regfit.fwd)
+reg.summary
+
+# Структура отчета по модели (ищем характеристики качества)
+names(reg.summary)
+
+# R^2 и скорректированный R^2
+round(reg.summary$rsq, 3)
+
+# На графике
+plot(1:10, reg.summary$rsq, type = 'b',
+     xlab = 'Количество предикторов', ylab = 'R-квадрат')
+# Сюда же добавим скорректированный R-квадрат
+points(1:10, reg.summary$adjr2, col = 'red')
+# Модель с максимальным скорректированным R-квадратом
+which.max(reg.summary$adjr2)
+
+### 9
+
+points(which.max(reg.summary$adjr2),
+       reg.summary$adjr2[which.max(reg.summary$adjr2)],
+       col = 'red', cex = 2, pch = 20)
+legend('bottomright', legend = c('R^2', 'R^2_adg'),
+       col = c('black', 'red'), lty = c(1, NA),
+       pch = c(1, 1))
+
+# C_p
+reg.summary$cp
+
+# Число предикторов у оптимального значения критерия
+which.min(reg.summary$cp)
+
+### 8
+
+# График
+plot(reg.summary$cp, xlab = 'Число предикторов',
+     ylab = 'C_p', type = 'b')
+points(which.min(reg.summary$cp),
+       reg.summary$cp[which.min(reg.summary$cp)],
+       col = 'red', cex = 2, pch = 20)
+
+# BIC
+reg.summary$bic
+
+# Число предикторов у оптимального значения критерия
+which.min(reg.summary$bic)
+
+### 4
+
+# График
+plot(reg.summary$bic, xlab = 'Число предикторов',
+     ylab = 'BIC', type = 'b')
+points(which.min(reg.summary$bic),
+       reg.summary$bic[which.min(reg.summary$bic)],
+       col = 'red', cex = 2, pch = 20)
+
+# Метод plot для визуализации результатов
+plot(regfit.fwd, scale = 'r2')
+plot(regfit.fwd, scale = 'adjr2')
+plot(regfit.fwd, scale = 'Cp')
+plot(regfit.fwd, scale = 'bic')
+
+# Коэффициенты модели с наименьшим BIC
+round(coef(regfit.fwd, 4), 3)
+```
+
+## Нахождение оптимальной модели  при помощи метода перекрёстной проверки 
+
+### k-кратная кросс-валидация  
+
+```{r}
+# Отбираем 10 блоков наблюдений
+k <- 10
+set.seed(my.seed)
+folds <- sample(1:k, nrow(Auto), replace = T)
+
+# Заготовка под матрицу с ошибками
+cv.errors <- matrix(NA, k, 10, dimnames = list(NULL, paste(1:10)))
+
+predict.regsubsets = function(object, newdata, id, ...) {
+    form = as.formula(object$call[[2]])
+    mat = model.matrix(form, newdata)
+    coefi = coef(object, id = id)
+    mat[, names(coefi)] %*% coefi}
+
+# Заполняем матрицу в цикле по блокам данных
+for (j in 1:k){
+    best.fit <- regsubsets(Accept ~ ., data = College[folds != j, ],
+                           nvmax = 10)
+    # Теперь цикл по количеству объясняющих переменных
+    for (i in 1:10){
+        # Модельные значения Accept
+        pred <- predict(best.fit, College[folds == j, ], id = i)
+        # Вписываем ошибку в матрицу
+        cv.errors[j, i] <- mean((College$Accept[folds == j] - pred)^2)
+    }
+}
+
+# Усредняем матрицу по каждому столбцу (т.е. по блокам наблюдений), 
+# Чтобы получить оценку MSE для каждой модели с фиксированным 
+# Количеством объясняющих переменных
+mean.cv.errors <- apply(cv.errors, 2, mean)
+round(mean.cv.errors, 0)
+
+# На графике
+plot(mean.cv.errors, type = 'b')
+points(which.min(mean.cv.errors), mean.cv.errors[which.min(mean.cv.errors)],
+       col = 'red', pch = 20, cex = 2)
+
+# Перестраиваем модель с 8 объясняющими переменными на всём наборе данных
+reg.best <- regsubsets(Accept ~ ., data = College, nvmax = 8)
+round(coef(reg.best, 8), 3)
+```
+
+## Регрессия на главные компоненты
+
+```{r}
+# Кросс-валидация
+set.seed(2)
+pcr.fit <- pcr(Accept ~ ., data = College, scale = T, validation = 'CV')
+summary(pcr.fit)
+
+# График ошибок
+validationplot(pcr.fit, val.type = 'MSEP')
+```
+
+## Подбор оптимального М: кросс-валидация на обучающей выборке
+
+```{r}
+set.seed(my.seed)
+x <- model.matrix(Accept ~ ., College)[, -1]
+train <- sample(1:nrow(x), nrow(x)/2)
+test <- -train
+y <- College$Accept
+y.test <- y[test]
+pcr.fit <- pcr(Accept ~ ., data = College, subset = train, scale = T, validation = 'CV')
+validationplot(pcr.fit, val.type = 'MSEP')
+
+# MSE на тестовой выборке
+pcr.pred <- predict(pcr.fit, x[test, ], ncomp = 10)
+round(mean((pcr.pred - y.test)^2), 0)
+
+# Подгоняем модель на всей выборке для М = 10
+# (Оптимально по методу перекрёстной проверки)
+pcr.fit <- pcr(y ~ x, scale = T, ncomp = 10)
+summary(pcr.fit)
+```
+
+```{r}
+# MSE на тестовой выборке с 10 объясняющими переменными (отбор путём пошагового включения)
+opt.test <- predict(best.fit, College[test, ], id = 10)
+opt.mse.test <- round(mean((opt.test - y.test)^2), 0)
+
+# MSE на тестовой выборке (регрессия на главные компоненты)
+regres.test <- predict(pcr.fit, x[test, ], ncomp = 10)
+regres.mse.test <- round(mean((pcr.pred - y.test)^2), 0)
+
+MSE.test <- rbind(opt.mse.test, regres.mse.test)
+row.names(MSE.test) <- c('MSE (отбор путём пошагового включения)', 'MSE (регрессия на главные компоненты)')
+kable(MSE.test)
+```
+
+Сравнивая результаты расчётов MSE на тестовой выборке для двух оптимальных моделей, полученных в заданиях 1 и 2, можно заключить, что стандартная ошибка MSE модели №1 (отбор путём пошагового включения) оказалась меньше, чем MSE модели №2. Таким образом, модель №1 (отбор путём пошагового включения) оказалась лучшей.
